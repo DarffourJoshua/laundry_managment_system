@@ -1,0 +1,27 @@
+# Python
+*.pyc
+__pycache__/
+*.$py.class
+
+# Django
+*.log
+*.pot
+local_settings.py
+.env
+db.sqlite3
+media/
+static/
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# OS and IDE files
+.DS_Store
+.idea/
+.vscode/
+htmlcov/
+.tox/
+.coverage
+pip-log.txt

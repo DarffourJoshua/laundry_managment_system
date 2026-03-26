@@ -24,27 +24,22 @@ class RegView(APIView):
             data = request.data
 
             username = data.get('username')
-            email = data.get('email')
+            telephone = data.get('telephone')
+            # email = data.get('email')
             password = data.get('password')
-            password1 = data.get('password1')
 
-            if not (username and email and password and password1):
+            if not (username and password and telephone):
                 response['message'] = 'Please fill in all fields'
                 response['status'] = status.HTTP_400_BAD_REQUEST
                 raise ValueError('Incomplete data')
 
-            if password != password1:
-                response['message'] = 'Passwords do not match'
-                response['status'] = status.HTTP_400_BAD_REQUEST
-                raise ValueError('Passwords do not match')
-
             # Check if the entered email is valid
-            try:
-                validate_email(email)
-            except ValidationError:
-                response['message'] = 'Invalid email format'
-                response['status'] = status.HTTP_400_BAD_REQUEST
-                raise ValueError('Invalid email format')
+            # try:
+            #     validate_email(email)
+            # except ValidationError:
+            #     response['message'] = 'Invalid email format'
+            #     response['status'] = status.HTTP_400_BAD_REQUEST
+            #     raise ValueError('Invalid email format')
 
             check_user = User.objects.filter(username=username)
 
@@ -53,22 +48,22 @@ class RegView(APIView):
                 response['status'] = status.HTTP_409_CONFLICT
                 raise ValueError('Username Already Taken')
 
-            token = generate_random_string(20)
-            send_mail_to_user(token, email)
-            if not send_mail_to_user(token, email):
-                response = {
-                    'message': 'Error sending verification email.',
-                    'status': status.HTTP_500_INTERNAL_SERVER_ERROR
-                }
-                raise ValueError('Email Sending Fail')
+            # token = generate_random_string(20)
+            # send_mail_to_user(token, email)
+            # if not send_mail_to_user(token, email):
+            #     response = {
+            #         'message': 'Error sending verification email.',
+            #         'status': status.HTTP_500_INTERNAL_SERVER_ERROR
+            #     }
+            #     raise ValueError('Email Sending Fail')
 
-            user_obj = User.objects.create(email=email, username=username)
+            user_obj = User.objects.create(username=username, telephone=telephone)
             user_obj.set_password(password)
             user_obj.save()
             response['status'] = status.HTTP_201_CREATED
             response['message'] = 'User Created'
 
-            Profile.objects.create(user=user_obj, token=token)
+            Profile.objects.create(user=user_obj)
 
         except Exception as e:
             print('Exception:', str(e))
