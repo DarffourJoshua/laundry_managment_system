@@ -42,10 +42,12 @@ INSTALLED_APPS = [
     'rest_framework',
     'user',
     'laundryadmin',
-    'staff'
+    'staff',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware'
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -159,3 +161,19 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':  timedelta(minutes=5),
     'REFRESH_TOKEN_LIFETIME': timedelta(hours=24),
 }
+
+CORS_ALLOW_CREDENTIALS = True      # allows cookies to be sent cross-origin
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",        # your React dev server
+    "http://localhost:5173",        # if using Vite
+]
+
+# For Postman testing only — remove in production
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Tell DRF to enforce CSRF only on session auth, not JWT
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:8000',
+]
