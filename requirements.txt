@@ -6,12 +6,14 @@ dill==0.4.1
 Django==6.0.3
 django-cors-headers==4.9.0
 djangorestframework==3.17.1
+djangorestframework_simplejwt==5.5.1
 isort==8.0.1
 mccabe==0.7.0
 pep8==1.7.1
 pillow==12.1.1
 platformdirs==4.9.4
 pycodestyle==2.14.0
+PyJWT==2.12.1
 pylint==4.0.5
 pylint-django==2.7.0
 pylint-plugin-utils==0.9.0

@@ -1,7 +1,7 @@
 from django.db import models
 
 # Create your models here.
-class CompanySettings(model.Model):
+class CompanySettings(models.Model):
     """
         Singleton model - only one row should ever exist
         Represents the laundry business's own profile
