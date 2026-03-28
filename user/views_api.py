@@ -25,6 +25,7 @@ class RegView(APIView):
 
             username = data.get('username')
             telephone = data.get('telephone')
+            role = data.get('role')
             # email = data.get('email')
             password = data.get('password')
 
