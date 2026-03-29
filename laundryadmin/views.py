@@ -1,5 +1,3 @@
-
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -52,7 +50,7 @@ class AdminLoginView(APIView):
         access_token = str(refresh.access_token)
         refresh_token = str(refresh)
 
-         # Store tokens in HttpOnly cookies — not accessible via JavaScript
+        # Store tokens in HttpOnly cookies — not accessible via JavaScript
         response.set_cookie(
             key      = 'access_token',
             value    = access_token,
@@ -123,7 +121,7 @@ class AdminAuthSessionView(APIView):
             'id':           user.id,
             'username':     user.username,
             'full_name':    user.get_full_name(),
-            'email':        user.email,
+            # 'email':        user.email,
             'is_superuser': user.is_superuser,
             'is_staff':     user.is_staff,
         }, status=status.HTTP_200_OK)
@@ -176,7 +174,10 @@ class StaffDetailView(APIView):
         """Get a single staff account"""
         staff = self.get_object(pk)
         if not staff:
-            return Response({'message': 'Staff not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'message': 'Staff not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         serializer = StaffSerializer(staff)
         return Response(serializer.data)
 
@@ -184,7 +185,10 @@ class StaffDetailView(APIView):
         """Update a staff account (partial update)"""
         staff = self.get_object(pk)
         if not staff:
-            return Response({'message': 'Staff not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {'message': 'Staff not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         serializer = StaffSerializer(staff, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -226,6 +230,8 @@ class ServiceListCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+
+
 class ServiceDetailView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
@@ -255,6 +261,33 @@ class ServiceDetailView(APIView):
         service.save()
         return Response({'message': 'Service deactivated'}, status=status.HTTP_200_OK)
 
+
+class AdminDashboardView(APIView):
+    authentication_classes=[CookieJWTAuthentication]
+    permission_classes=[IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        total_services = Service.objects.count()
+        active_services = Service.objects.filter(is_active=True).count()
+        active_services = Service.objects.filter(is_active=False).count()
+
+
+        total_staffs = User.objects.all(is_staff=True, is_superuser=False)
+        active_staffs = User.objects.filter(is_staff=True, is_superuser=False,is_active=True).count()
+        inactive_staffs = User.objects.filter(is_staff=True, is_superuser=False,is_active=False).count()
+
+        return Response({
+            'services': {
+                'total':    total_services,
+                'active':   active_services,
+                'inactive': inactive_services,
+            },
+            'staffs': {
+                'total':    total_staffs,
+                'active':   active_staffs,
+                'inactive': inactive_staffs,
+            }
+        }, status=status.HTTP_200_OK)
 
 # ─────────────────────────────────────────────
 # ORDER VIEWING  (read-only for admin)

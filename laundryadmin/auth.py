@@ -1,8 +1,7 @@
 # laundryadmin/authentication.py
 
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError, AuthenticationFailed
 
 
 class CookieJWTAuthentication(JWTAuthentication):
@@ -19,6 +18,6 @@ class CookieJWTAuthentication(JWTAuthentication):
         try:
             validated_token = self.get_validated_token(access_token)
             return self.get_user(validated_token), validated_token
-            
+
         except (InvalidToken, TokenError) as e:
             raise AuthenticationFailed(str(e))

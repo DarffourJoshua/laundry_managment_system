@@ -1,136 +1,277 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import logout, login, authenticate
-from django.contrib import messages
-from .models import *
-from laundryadmin.models import *
-from django.contrib.auth import update_session_auth_hash
-from django.contrib.auth.forms import PasswordChangeForm
-from laundryadmin.models import Price
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.views import PasswordResetView
-from django.contrib.auth.models import User
-from django.urls import reverse_lazy
+# user/views.py
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.exceptions import TokenError
+from django.contrib.auth import authenticate
+from laundryadmin.auth import CookieJWTAuthentication
+
+from .models import Order, Payment
+from .serializers import (
+    CustomerRegisterSerializer,
+    OrderSerializer,
+    CreateOrderSerializer,
+    PaymentSerializer,
+    CustomerOrderTrackSerializer,
+)
 
 
-def userlogin(request):
-    logout(request)
-    if request.method == 'POST':
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+# ─────────────────────────────────────────────
+# CUSTOMER AUTH
+# ─────────────────────────────────────────────
+
+class CustomerRegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = CustomerRegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {'message': 'Account created successfully'},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CustomerLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+
+        if not username or not password:
+            return Response(
+                {'message': 'Username and password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            return redirect('index')
 
-            # if user.profile.is_verified:
-            #     login(request, user)
-            #     return redirect('index')
-            # else:
-            #     error_message = "User is not verified. Please verify your account."
-            #     return render(request, 'userlogin.html', {'messages': error_message})
-            
-        else:
-            error_message = "Invalid username or password"
-            return HttpResponse(error_message)
-            # return render(request, 'userlogin.html', {'messages': error_message})
-    # else:
-    #     return render(request, 'userlogin.html')
+        if user is None:
+            return Response(
+                {'message': 'Invalid credentials'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
+        # Block staff/admin from logging in through customer endpoint
+        if user.is_staff or user.is_superuser:
+            return Response(
+                {'message': 'Please use the admin login'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-def userregister(request):
-    return render(request, 'userregister.html')
+        refresh      = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
 
-@login_required(login_url='/login/')
-def index(request):
-    if request.user:
-        price = Price.objects.first()
-        progress_counts = {}
-        for progress_choice in UserReqeuest.PROGRESS_CHOICES:
-            progress = progress_choice[0]
-            count = UserReqeuest.objects.filter(user = request.user, progress=progress).count()
-            progress_counts[progress] = count
-
-        history = UserReqeuest.objects.filter(user = request.user).order_by('-pickup_date')
-        context = {
-            'progress_counts': progress_counts,
-            'history': history,
-            'price': price,
-        }
-        return render(request, 'index.html', context)
-    else:
-        return redirect('login')
-
-@login_required(login_url='/login/')
-def new_request(request):
-    return render(request, 'new_request.html')
+        response = Response(
+            {'message': 'Login successful'},
+            status=status.HTTP_200_OK
+        )
+        response.set_cookie(
+            key='access_token', value=access_token,
+            httponly=True, secure=True, samesite='Lax', max_age=60 * 5
+        )
+        response.set_cookie(
+            key='refresh_token', value=refresh_token,
+            httponly=True, secure=True, samesite='Lax', max_age=60 * 60 * 24
+        )
+        return response
 
 
-def verify(request, token):
-    try:
-        profile_obj = Profile.objects.filter(token=token).first()
+class CustomerAuthSessionView(APIView):
+    """Returns logged in customer details — React calls this on app load"""
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes     = [IsAuthenticated]
 
-        if profile_obj:
-            profile_obj.is_verified = True
-            profile_obj.save()
-        return redirect('/login/')
-
-    except Exception as e:
-        print(e)
-
-    return redirect('/login/')
-
-@login_required(login_url='/login/')
-def user_profile(request):
-    user = request.user
-    context = {
-        'users': user
-    }
-    return render(request, 'profile.html', context)
+    def get(self, request):
+        user = request.user
+        return Response({
+            'id':         user.id,
+            'username':   user.username,
+            'full_name':  user.get_full_name(),
+            'email':      user.email,
+        }, status=status.HTTP_200_OK)
 
 
-@login_required(login_url='/login/')
-def change_password(request):
-    if request.method == 'POST':
-        form = PasswordChangeForm(request.user, request.POST)
-        if form.is_valid():
-            user = form.save()
-            update_session_auth_hash(request, user)
-            messages.success(request, 'Password changed successfully.')
-            return redirect('user_profile')
-        else:
-            if 'old_password' in form.errors:
-                messages.error(request, 'Enter Current Password Properly.')
-            else:
-                messages.error(request, 'New passwords Do Not Match.')
+class CustomerTokenRefreshView(APIView):
+    permission_classes = [AllowAny]
 
-    else:
-        form = PasswordChangeForm(request.user)
+    def post(self, request):
+        refresh_token = request.COOKIES.get('refresh_token')
 
-    form.fields['old_password'].widget.attrs['class'] = 'form-control'
-    form.fields['new_password1'].widget.attrs['class'] = 'form-control'
-    form.fields['new_password2'].widget.attrs['class'] = 'form-control'
-
-    return render(request, 'change_password.html', {'form': form})
-
-
-
-
-class CustomPasswordResetView(PasswordResetView):
-    template_name = 'users/password_reset.html'
-    email_template_name = 'users/password_reset_email.html'
-    success_url = reverse_lazy('password_reset_done')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['is_submitting'] = False
-        return context
-
-    def form_valid(self, form):
-        email = form.cleaned_data.get('email')
+        if not refresh_token:
+            return Response(
+                {'message': 'Refresh token missing'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
         try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            messages.error(self.request, 'Email address not found.')
-            return redirect(reverse_lazy('password-reset'))
+            refresh          = RefreshToken(refresh_token)
+            new_access_token = str(refresh.access_token)
+        except TokenError:
+            return Response(
+                {'message': 'Invalid or expired refresh token, please login again'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
-        return super().form_valid(form)
+        response = Response({'message': 'Token refreshed'}, status=status.HTTP_200_OK)
+        response.set_cookie(
+            key='access_token', value=new_access_token,
+            httponly=True, secure=True, samesite='Lax', max_age=60 * 5
+        )
+        return response
+
+
+class CustomerLogoutView(APIView):
+    def post(self, request):
+        response = Response(
+            {'message': 'Logged out successfully'},
+            status=status.HTTP_200_OK
+        )
+        response.delete_cookie('access_token')
+        response.delete_cookie('refresh_token')
+        return response
+
+
+# ─────────────────────────────────────────────
+# CUSTOMER — PLACE ORDER
+# ─────────────────────────────────────────────
+
+class CustomerOrderCreateView(APIView):
+    """Logged in customer places their own order"""
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes     = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = CreateOrderSerializer(data=request.data)
+        if serializer.is_valid():
+            order = serializer.save(
+                customer         = request.user,   # link order to logged in customer
+                created_by_staff = False,
+            )
+            return Response({
+                'message':    'Order placed successfully',
+                'invoice_id': order.invoice_id,
+                'total':      order.total,
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─────────────────────────────────────────────
+# CUSTOMER — ORDER TRACKING (no login needed)
+# ─────────────────────────────────────────────
+
+class CustomerOrderTrackView(APIView):
+    """
+    Anyone can track an order using just the invoice ID.
+    No account or login required.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, invoice_id):
+        try:
+            order = Order.objects.get(invoice_id=invoice_id)
+        except Order.DoesNotExist:
+            return Response(
+                {'message': 'No order found with that invoice ID'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = CustomerOrderTrackSerializer(order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# ─────────────────────────────────────────────
+# STAFF — ORDER MANAGEMENT
+# ─────────────────────────────────────────────
+
+class StaffOrderListCreateView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes     = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        """List all orders — filterable by ?status=WASHING"""
+        orders       = Order.objects.all().order_by('-created_at')
+        order_status = request.query_params.get('status')
+        if order_status:
+            orders = orders.filter(status=order_status.upper())
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        """Staff creates order on behalf of a customer"""
+        serializer = CreateOrderSerializer(data=request.data)
+        if serializer.is_valid():
+            order = serializer.save(
+                customer         = None,   # no user account needed
+                created_by_staff = True,
+            )
+            return Response({
+                'message':    'Order created successfully',
+                'invoice_id': order.invoice_id,
+                'total':      order.total,
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class StaffOrderDetailView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes     = [IsAuthenticated, IsAdminUser]
+
+    def get_object(self, invoice_id):
+        try:
+            return Order.objects.get(invoice_id=invoice_id)
+        except Order.DoesNotExist:
+            return None
+
+    def get(self, request, invoice_id):
+        order = self.get_object(invoice_id)
+        if not order:
+            return Response({'message': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = OrderSerializer(order)
+        return Response(serializer.data)
+
+    def patch(self, request, invoice_id):
+        """Update order status e.g RECEIVED → WASHING"""
+        order = self.get_object(invoice_id)
+        if not order:
+            return Response({'message': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = OrderSerializer(order, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Order updated', 'data': serializer.data})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ─────────────────────────────────────────────
+# STAFF — RECORD PAYMENT
+# ─────────────────────────────────────────────
+
+class StaffRecordPaymentView(APIView):
+    authentication_classes = [CookieJWTAuthentication]
+    permission_classes     = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request, invoice_id):
+        try:
+            order = Order.objects.get(invoice_id=invoice_id)
+        except Order.DoesNotExist:
+            return Response({'message': 'Order not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if hasattr(order, 'payment'):
+            return Response(
+                {'message': 'Payment already recorded for this order'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = PaymentSerializer(data={**request.data, 'order': order.id})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {'message': 'Payment recorded', 'data': serializer.data},
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

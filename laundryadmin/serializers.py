@@ -26,7 +26,7 @@ class StaffSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = User
-        fields = ['id', 'username', 'full_name', 'email', 'password', 'is_active']
+        fields = ['id', 'username', 'full_name', 'email', 'password', 'is_active', 'telephone']
         read_only_fields = ['id']
 
     def create(self, validated_data):
@@ -34,7 +34,10 @@ class StaffSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             username   = validated_data['username'],
             password   = validated_data['password'],
-            first_name = validated_data.get('full_name', ''),
+            full_name = validated_data.get('full_name', ''),
+            telephone = validated_data.get('telephone', ''),
+            # first_name = validated_data.get('first_name', ''),
+            # last_name = validated_data.get('last_name', ''),
             email      = validated_data.get('email', ''),
             is_staff   = True,   # marks them as staff, not superuser
         )

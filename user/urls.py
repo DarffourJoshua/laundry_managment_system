@@ -1,24 +1,36 @@
+# user/urls.py
+
 from django.urls import path
-from .views import *
-from user.views import CustomPasswordResetView
-from django.urls import path
-from django.contrib.auth.views import (
-    PasswordResetDoneView,
-    PasswordResetConfirmView,
-    PasswordResetCompleteView
+from .views import (
+    CustomerRegisterView,
+    CustomerLoginView,
+    CustomerAuthSessionView,
+    CustomerTokenRefreshView,
+    CustomerLogoutView,
+    CustomerOrderCreateView,
+    CustomerOrderTrackView,
+    StaffOrderListCreateView,
+    StaffOrderDetailView,
+    StaffRecordPaymentView,
 )
 
 urlpatterns = [
-    path('', index, name="index"),
-    path('login/', userlogin, name="login"),
-    path('change-password/', change_password, name="change_password"),
-    path('profile/', user_profile, name="user_profile"),
-    path('register/', userregister, name="register"),
-    path('verify/<token>/', verify, name="verify"),
-    path('newreq/', new_request, name="new_request"),
 
-    path('password-reset/', CustomPasswordResetView.as_view() ,name='password-reset'),
-    path('password-reset/done/', PasswordResetDoneView.as_view(template_name='users/password_reset_done.html'),name='password_reset_done'),
-    path('password-reset-confirm/<uidb64>/<token>/', PasswordResetConfirmView.as_view(template_name='users/password_reset_confirm.html'),name='password_reset_confirm'),
-    path('password-reset-complete/',PasswordResetCompleteView.as_view(template_name='users/password_reset_complete.html'),name='password_reset_complete'),
+    # Customer auth
+    path('register/',               CustomerRegisterView.as_view(),     name='customer-register'),
+    path('login/',                  CustomerLoginView.as_view(),         name='customer-login'),
+    path('auth/session/',           CustomerAuthSessionView.as_view(),   name='customer-session'),
+    path('token/refresh/',          CustomerTokenRefreshView.as_view(),  name='customer-token-refresh'),
+    path('logout/',                 CustomerLogoutView.as_view(),        name='customer-logout'),
+
+    # Customer order
+    path('orders/',                 CustomerOrderCreateView.as_view(),   name='customer-order-create'),
+
+    # Order tracking — no login needed
+    path('track/<str:invoice_id>/', CustomerOrderTrackView.as_view(),    name='customer-order-track'),
+
+    # Staff order management
+    path('staff/orders/',                        StaffOrderListCreateView.as_view(), name='staff-order-list-create'),
+    path('staff/orders/<str:invoice_id>/',       StaffOrderDetailView.as_view(),     name='staff-order-detail'),
+    path('staff/orders/<str:invoice_id>/pay/',   StaffRecordPaymentView.as_view(),   name='staff-order-payment'),
 ]

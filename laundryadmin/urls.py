@@ -11,12 +11,16 @@ from .views import (
     CompanySettingsView,
     AdminLogoutView,
     AdminTokenRefreshView,
-    AdminAuthSessionView
+    AdminAuthSessionView,
+    AdminDashboardView,
 )
 
 urlpatterns = [
     # Auth
     path('login/',                  AdminLoginView.as_view(),          name='admin-login'),
+
+    # Admin Dashboard
+    path('dashboard/', AdminDashboardView.as_view(), name='admin-dashboard'),
 
     # Staff management
     path('staff/',                  StaffListCreateView.as_view(),     name='staff-list-create'),
