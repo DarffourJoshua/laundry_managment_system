@@ -11,6 +11,7 @@ from laundryadmin.auth import CookieJWTAuthentication
 from .models import CompanySettings, Service
 from .serializers import CompanySettingsSerializer, ServiceSerializer, StaffSerializer
 from user.models import Order
+from user.serializers import OrderSerializer
 
 
 # ---------------
@@ -22,6 +23,7 @@ class AdminLoginView(APIView):
     Only supersusers or staff can log in through this endpoint.
     """
 
+    permission_classes = []
     def post(self, request):
         username = request.data.get('username')
         password = request.data.get('password')
@@ -45,6 +47,11 @@ class AdminLoginView(APIView):
                 {'message', 'You are not authorized to access this panel'},
                 status=status.HTTP_403_FORBIDDEN
             )
+
+        response =  Response(
+            {'message': 'Login Successful'},
+            status=status.HTTP_200_OK
+        )
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
@@ -269,10 +276,10 @@ class AdminDashboardView(APIView):
     def get(self, request):
         total_services = Service.objects.count()
         active_services = Service.objects.filter(is_active=True).count()
-        active_services = Service.objects.filter(is_active=False).count()
+        inactive_services = Service.objects.filter(is_active=False).count()
 
 
-        total_staffs = User.objects.all(is_staff=True, is_superuser=False)
+        total_staffs = User.objects.filter(is_staff=True, is_superuser=False).count()
         active_staffs = User.objects.filter(is_staff=True, is_superuser=False,is_active=True).count()
         inactive_staffs = User.objects.filter(is_staff=True, is_superuser=False,is_active=False).count()
 
@@ -308,8 +315,11 @@ class AdminOrderListView(APIView):
             orders = orders.filter(status=order_status)
 
         # We'll wire up OrderSerializer once the user/order model is finalized
+        # services = Service.objects.all().order_by('-created_at')
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(
-            {'message': 'Order serializer will be connected after user app is set up'},
+            {orders},
             status=status.HTTP_200_OK
         )
 
