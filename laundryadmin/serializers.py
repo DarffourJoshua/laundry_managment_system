@@ -1,8 +1,8 @@
 
 
 from rest_framework import serializers
-from django.contrib.auth.models import User
 from .models import CompanySettings, Service
+from user.models import CustomUser
 
 
 class ServiceSerializer(serializers.ModelSerializer):
@@ -25,13 +25,13 @@ class StaffSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
 
     class Meta:
-        model  = User
+        model  = CustomUser
         fields = ['id', 'username', 'password', 'is_active', 'telephone']
         read_only_fields = ['id']
 
     def create(self, validated_data):
         # Use create_user so password gets hashed properly
-        user = User.objects.create_user(
+        user = CustomUser.objects.create_user(
             username   = validated_data['username'],
             password   = validated_data['password'],
             telephone = validated_data.get('telephone', ''),

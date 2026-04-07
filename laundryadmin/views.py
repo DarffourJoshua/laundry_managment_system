@@ -5,14 +5,14 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+# from django.contrib.auth.models import User
 from laundryadmin.auth import CookieJWTAuthentication
 
 from .models import CompanySettings, Service
 from .serializers import CompanySettingsSerializer, ServiceSerializer, StaffSerializer
 from user.models import Order
 from user.serializers import OrderSerializer
-
+from user.models import CustomUser
 
 # ---------------
 # AUTH
@@ -152,12 +152,13 @@ class StaffListCreateView(APIView):
 
     def get(self, request):
         """List all staff accounts"""
-        staff = User.objects.filter(is_staff=True, is_superuser=False)
+        staff = CustomUser.objects.filter(is_staff=True, is_superuser=False)
         serializer = StaffSerializer(staff, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
         """Create a new staff account"""
+        # print(f'Staff credentials: {request.data}')
         serializer = StaffSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -279,9 +280,9 @@ class AdminDashboardView(APIView):
         inactive_services = Service.objects.filter(is_active=False).count()
 
 
-        total_staffs = User.objects.filter(is_staff=True, is_superuser=False).count()
-        active_staffs = User.objects.filter(is_staff=True, is_superuser=False,is_active=True).count()
-        inactive_staffs = User.objects.filter(is_staff=True, is_superuser=False,is_active=False).count()
+        total_staffs = CustomUser.objects.filter(is_staff=True, is_superuser=False).count()
+        active_staffs = CustomUser.objects.filter(is_staff=True, is_superuser=False,is_active=True).count()
+        inactive_staffs = CustomUser.objects.filter(is_staff=True, is_superuser=False,is_active=False).count()
 
         return Response({
             'services': {
